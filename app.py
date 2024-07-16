@@ -2,10 +2,37 @@ from flask import Flask, render_template, request, redirect, url_for
 import os
 import easyocr
 import requests
+import re
+import pandas as pd
+import csv
+import cv2
+from model import mod,value
+from utils.maps import gen,loc,med,pol,dia,pla,spe,mapss
+
+def extract(text):
+    da = {}
+    b = ""
+    data = ["PolicyHolder ID","Age","Gender","Location","Medical History","Policy Type","Procedure Code","Diagnosis Codes","Treatment Cost","Place Of Service","Provider ID","Specialization"]
+    ma = ["Gender","Location","Medical History","Policy Type","Diagnosis Codes","Place Of Service","Specialization"]
+    for match in text:
+        if b != "" :
+            if(b in ma):
+                da[b]=mapss[b][match]
+            else:
+                da[b]=match
+            b = ""
+        else :
+            if(match in data):
+                b = match
+            else:
+                b = ""
+
+    return mod(da)
 
 def ocr(img):
-    reader = easyocr.Reader(['en'])
+    reader = easyocr.Reader(['en'],gpu=True)
     result = reader.readtext(img,detail=0)
+    result = extract(result)
     return result
 
 app = Flask(__name__, static_url_path='/static')
@@ -24,7 +51,7 @@ def allowed_file(filename):
 # Route for the home page
 @app.route('/')
 def home():
-    return render_template('upload.html')
+    return render_template('index.html')
 
 # Route for handling file upload
 @app.route('/upload', methods=['POST'])
@@ -45,54 +72,10 @@ def upload_file():
         filename = file.filename
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         p = ocr('static/uploads/'+filename)
-        return render_template('result.html',prediction=p)
+        return render_template('resultPage.html',prob=p[0],prediction=p[1])
 
     return 'Invalid file format'
-
-# Route for displaying the uploaded file
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return render_template('uploaded.html', filename=filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
 
-
-# from flask import Flask, render_template,request,redirect
-# import easyocr
-# import requests
-
-# def ocr(img):
-#     reader = easyocr.Reader(['en'])
-#     result = reader.readtext(img,detail=0)
-#     return result
-
-# app = Flask(__name__)
-
-# @app.route('/',methods=['POST','GET'])
-# def index():
-#     return render_template("index.html")
-
-# @app.route('/upload',methods=['GET','POST'])
-# def upload():
-#     if request.method == 'POST':
-#         if 'file' not in request.files:
-#             return redirect(request.url)
-#         file = request.files.get('file')
-#         if not file:
-#             return "Error1"
-#         try:
-#             img = file.read()
-#             prediction = ocr(img)
-#             return render_template("result.html", prediction=prediction)
-#         except:
-#             pass
-#     return "Error2"
-
-# @app.route('/print')
-# def print():
-#     p = "Hello World"
-#     return render_template("result.html",prediction = p)
-
-# if __name__ == '__main__':
-#    app.run()
